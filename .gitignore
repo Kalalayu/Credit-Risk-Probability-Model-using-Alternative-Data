@@ -1,0 +1,8 @@
+from data_processing import load_data, clean_data, build_features
+
+df = load_data(r"C:\Users\Dell\Pictures\Credit-Risk-Probability-Model-using-Alternative-Data\data\raw\data.csv")
+df = clean_data(df)
+
+X, pipeline = build_features(df)
+
+print("Feature engineering completed successfully")
