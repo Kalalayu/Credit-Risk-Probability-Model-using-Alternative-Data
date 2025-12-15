@@ -1,8 +1,73 @@
-from data_processing import load_data, clean_data, build_features
+# --------------------
+# Python
+# --------------------
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.env
+.env.*
+.venv/
+venv/
 
-df = load_data(r"C:\Users\Dell\Pictures\Credit-Risk-Probability-Model-using-Alternative-Data\data\raw\data.csv")
-df = clean_data(df)
+# --------------------
+# Jupyter / Notebooks
+# --------------------
+.ipynb_checkpoints/
 
-X, pipeline = build_features(df)
+# --------------------
+# ML / Data / Models
+# --------------------
+data/
+dataset/
+datasets/
+models/
+checkpoints/
+runs/
+*.h5
+*.pt
+*.pth
+*.pkl
+*.joblib
+*.onnx
+*.csv
 
-print("Feature engineering completed successfully")
+# --------------------
+# Hugging Face / ML tools
+# --------------------
+.cache/
+.hf/
+wandb/
+
+# --------------------
+# Docker
+# --------------------
+*.log
+docker-compose.override.yml
+
+# --------------------
+# OS files
+# --------------------
+.DS_Store
+Thumbs.db
+
+# --------------------
+# Editors / IDEs
+# --------------------
+.vscode/
+.idea/
+*.swp
+
+# --------------------
+# Build / Distribution
+# --------------------
+build/
+dist/
+*.egg-info/
+
+# --------------------
+# Tests / Coverage
+# --------------------
+.coverage
+htmlcov/
+.pytest_cache/
