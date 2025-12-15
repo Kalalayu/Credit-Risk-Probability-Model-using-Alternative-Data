@@ -1,0 +1,73 @@
+# --------------------
+# Python
+# --------------------
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.env
+.env.*
+.venv/
+venv/
+
+# --------------------
+# Jupyter / Notebooks
+# --------------------
+.ipynb_checkpoints/
+
+# --------------------
+# ML / Data / Models
+# --------------------
+data/
+dataset/
+datasets/
+models/
+checkpoints/
+runs/
+*.h5
+*.pt
+*.pth
+*.pkl
+*.joblib
+*.onnx
+*.csv
+
+# --------------------
+# Hugging Face / ML tools
+# --------------------
+.cache/
+.hf/
+wandb/
+
+# --------------------
+# Docker
+# --------------------
+*.log
+docker-compose.override.yml
+
+# --------------------
+# OS files
+# --------------------
+.DS_Store
+Thumbs.db
+
+# --------------------
+# Editors / IDEs
+# --------------------
+.vscode/
+.idea/
+*.swp
+
+# --------------------
+# Build / Distribution
+# --------------------
+build/
+dist/
+*.egg-info/
+
+# --------------------
+# Tests / Coverage
+# --------------------
+.coverage
+htmlcov/
+.pytest_cache/
