@@ -167,6 +167,7 @@ def save_processed_data(X, path: str):
 if __name__ == "__main__":
     raw_data_path = "data/raw/data.csv"
     processed_path = "data/processed/features.npy"
+    # processed_path = "data/processed/model_input.csv"
 
     df = load_data(raw_data_path)
     X, preprocessor, feature_names = prepare_features(df)
