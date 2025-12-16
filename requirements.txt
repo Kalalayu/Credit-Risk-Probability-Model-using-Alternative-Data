@@ -20,3 +20,9 @@ pydantic
 joblib
 
 xverse
+
+mlflow
+pytest
+scikit-learn
+xgboost
+lightgbm

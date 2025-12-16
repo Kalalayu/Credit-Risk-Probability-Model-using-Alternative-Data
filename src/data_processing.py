@@ -1,91 +1,177 @@
-# Step 1 — Load & clean raw data
+# src/data_processing.py
 import pandas as pd
-from pathlib import Path
+import numpy as np
+import logging
 
-def load_data(file_path: str) -> pd.DataFrame:
-    return pd.read_csv(file_path)
-
-def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.drop_duplicates()
-    df["TransactionStartTime"] = pd.to_datetime(
-        df["TransactionStartTime"], errors="coerce"
-    )
-    return df
-def save_data(df: pd.DataFrame, output_path: Path) -> None:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False)
-
-# Step 2 - Extract datetime features
-def extract_datetime_features(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df["TransactionHour"] = df["TransactionStartTime"].dt.hour
-    df["TransactionDay"] = df["TransactionStartTime"].dt.day
-    df["TransactionMonth"] = df["TransactionStartTime"].dt.month
-    df["TransactionYear"] = df["TransactionStartTime"].dt.year
-    return df
-
-# Step 3 — Aggregate customer-level features
-def aggregate_customer_features(df: pd.DataFrame) -> pd.DataFrame:
-    agg_df = df.groupby("CustomerId").agg(
-        TotalTransactionAmount=("Amount", "sum"),
-        AverageTransactionAmount=("Amount", "mean"),
-        TransactionCount=("TransactionId", "count"),
-        StdTransactionAmount=("Amount", "std"),
-        ChannelId=("ChannelId", "first"),
-        ProductCategory=("ProductCategory", "first"),
-        ProviderId=("ProviderId", "first"),
-        CurrencyCode=("CurrencyCode", "first"),
-    ).reset_index()
-
-    return agg_df
-# Step 4 — Create proxy default variable (required for WoE)
-def create_proxy_default(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df["proxy_default"] = (df["TransactionCount"] < 3).astype(int)
-    return df
-
-# Step 5 — Encode categorical variables
-from sklearn.preprocessing import LabelEncoder
-
-def encode_categoricals(df: pd.DataFrame, cat_cols: list) -> pd.DataFrame:
-    df = df.copy()
-    for col in cat_cols:
-        df[col] = df[col].fillna("Missing")
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col].astype(str))
-    return df
-# Step 6 — Build sklearn Pipeline
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 
+# If you want WOE encoding
+from category_encoders.woe import WOEEncoder  
+
+# -----------------------------
+# Setup basic logging
+# -----------------------------
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# -----------------------------
+# Data Loading
+# -----------------------------
+def load_data(path: str) -> pd.DataFrame:
+    """Load raw transaction data."""
+    try:
+        df = pd.read_csv(path)
+        df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'])
+        logging.info(f"Data loaded successfully: {df.shape[0]} rows, {df.shape[1]} columns")
+        return df
+    except FileNotFoundError:
+        logging.error(f"File not found: {path}")
+        raise
+    except Exception as e:
+        logging.error(f"Error loading data: {e}")
+        raise
+
+# -----------------------------
+# Aggregate Features
+# -----------------------------
+def create_aggregate_features(df: pd.DataFrame) -> pd.DataFrame:
+    required_cols = ['CustomerId', 'TransactionId', 'Amount']
+    for col in required_cols:
+        if col not in df.columns:
+            raise ValueError(f"Missing required column: {col}")
+
+    agg = df.groupby('CustomerId').agg(
+        total_amount=('Amount', 'sum'),
+        avg_amount=('Amount', 'mean'),
+        transaction_count=('TransactionId', 'count'),
+        std_amount=('Amount', 'std')
+    ).reset_index()
+
+    agg['std_amount'] = agg['std_amount'].fillna(0)
+    logging.info("Aggregate features created.")
+    return agg
+
+# -----------------------------
+# Time-Based Features
+# -----------------------------
+def extract_time_features(df: pd.DataFrame) -> pd.DataFrame:
+    if 'TransactionStartTime' not in df.columns:
+        raise ValueError("TransactionStartTime column missing")
+    df = df.copy()
+    df['tx_hour'] = df['TransactionStartTime'].dt.hour
+    df['tx_day'] = df['TransactionStartTime'].dt.day
+    df['tx_month'] = df['TransactionStartTime'].dt.month
+    df['tx_year'] = df['TransactionStartTime'].dt.year
+    logging.info("Time-based features extracted.")
+    return df
+
+# -----------------------------
+# Merge Aggregates
+# -----------------------------
+def merge_features(df: pd.DataFrame, agg: pd.DataFrame) -> pd.DataFrame:
+    df_merged = df.merge(agg, on='CustomerId', how='left')
+    logging.info("Aggregates merged back to main dataframe.")
+    return df_merged
+
+# -----------------------------
+# Feature Groups
+# -----------------------------
 NUMERIC_FEATURES = [
-    "TotalTransactionAmount",
-    "AverageTransactionAmount",
-    "TransactionCount",
-    "StdTransactionAmount",
+    'Value', 'Amount',
+    'total_amount', 'avg_amount',
+    'transaction_count', 'std_amount',
+    'tx_hour', 'tx_day', 'tx_month', 'tx_year'
 ]
 
-def build_preprocessing_pipeline():
-    numeric_pipeline = Pipeline(steps=[
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler())
-    ])
+CATEGORICAL_FEATURES = [
+    'ChannelId', 'ProductCategory',
+    'ProviderId', 'PricingStrategy'
+]
 
+# -----------------------------
+# Pipelines
+# -----------------------------
+numeric_pipeline = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+
+categorical_pipeline = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('encoder', OneHotEncoder(handle_unknown='ignore'))
+])
+
+def build_preprocessing_pipeline():
+    """Build full preprocessing pipeline for numeric + categorical features."""
     preprocessor = ColumnTransformer(
         transformers=[
-            ("num", numeric_pipeline, NUMERIC_FEATURES)
+            ('num', numeric_pipeline, NUMERIC_FEATURES),
+            ('cat', categorical_pipeline, CATEGORICAL_FEATURES)
         ]
     )
-
+    logging.info("Preprocessing pipeline created.")
     return preprocessor
 
-# Step 7 — Orchestrate feature building
-def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    df = extract_datetime_features(df)
-    agg_df = aggregate_customer_features(df)
-    agg_df = create_proxy_default(agg_df)
-    return agg_df
+# -----------------------------
+# Full Feature Preparation
+# -----------------------------
+def prepare_features(df: pd.DataFrame, target_column: str = None):
+    """
+    Prepares features for modeling.
 
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe with raw data.
+    target_column : str, optional
+        If provided, the target column will be used for WOE encoding or supervised transformers.
+
+    Returns
+    -------
+    X : np.ndarray
+        Preprocessed feature array.
+    preprocessor : ColumnTransformer
+        The fitted preprocessing pipeline.
+    feature_names : list
+        Names of transformed features.
+    """
+    df = extract_time_features(df)
+    agg = create_aggregate_features(df)
+    df = merge_features(df, agg)
+
+    preprocessor = build_preprocessing_pipeline()
+
+    if target_column and target_column in df.columns:
+        y = df[target_column]
+        X = preprocessor.fit_transform(df, y)  # For supervised transformers like WOE
+    else:
+        X = preprocessor.fit_transform(df)
+        y = None
+
+    feature_names = preprocessor.get_feature_names_out()
+    logging.info(f"Features prepared: {X.shape[0]} samples, {X.shape[1]} features")
+    return X, preprocessor, feature_names
+
+# -----------------------------
+# Save Processed Features
+# -----------------------------
+def save_processed_data(X, path: str):
+    np.save(path, X)
+    logging.info(f"Processed features saved to {path}")
+
+# -----------------------------
+# Main block to run directly
+# -----------------------------
+if __name__ == "__main__":
+    raw_data_path = "data/raw/data.csv"
+    processed_path = "data/processed/features.npy"
+
+    df = load_data(raw_data_path)
+    X, preprocessor, feature_names = prepare_features(df)
+    save_processed_data(X, processed_path)
+
+    print(f"Processed features saved successfully at '{processed_path}'")
+    print(f"Feature array shape: {X.shape}")
+    print(f"First 10 features: {feature_names[:10]}")
